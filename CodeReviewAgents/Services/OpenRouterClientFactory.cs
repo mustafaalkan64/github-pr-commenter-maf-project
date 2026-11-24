@@ -21,8 +21,9 @@ public sealed class OpenRouterClientFactory : IDisposable
         }
 
         var networkTimeout = TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 30, 900));
+        var fallbackHandler = new OpenRouterFallbackHandler(settings.Model, settings.FallbackModels);
 
-        _httpClient = new HttpClient
+        _httpClient = new HttpClient(fallbackHandler)
         {
             // Let ClientPipelineOptions.NetworkTimeout govern per-request timeouts cleanly.
             Timeout = Timeout.InfiniteTimeSpan
@@ -42,6 +43,7 @@ public sealed class OpenRouterClientFactory : IDisposable
         {
             Endpoint = new Uri(settings.BaseUrl),
             NetworkTimeout = networkTimeout,
+            RetryPolicy = new ClientRetryPolicy(maxRetries: 1),
             Transport = new HttpClientPipelineTransport(_httpClient)
         };
 

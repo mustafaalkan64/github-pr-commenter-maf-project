@@ -32,8 +32,8 @@ cd CodeReviewAgents
 
 # 1. OpenRouter (Ücretsiz API Key)
 dotnet user-secrets set "OpenRouter:ApiKey" "sk-or-v1-..."
-# İsteğe bağlı model seçimi (varsayılan: openrouter/free)
-dotnet user-secrets set "OpenRouter:Model" "openrouter/free"
+# İsteğe bağlı model seçimi (varsayılan: google/gemma-4-26b-a4b-it:free)
+dotnet user-secrets set "OpenRouter:Model" "google/gemma-4-26b-a4b-it:free"
 
 # 2. GitHub PR Yorumu (gerçek PR'a yorum atmak için DryRun=false yapın)
 dotnet user-secrets set "GitHub:Token" "ghp_..."
@@ -88,7 +88,7 @@ jobs:
   ai-review:
     uses: mustafaalkan64/github-pr-commenter-maf-project/.github/workflows/reusable-code-review.yml@main
     with:
-      openrouter_model: "openrouter/free" # İsteğe bağlı
+      openrouter_model: "google/gemma-4-26b-a4b-it:free" # İsteğe bağlı
     secrets:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 ```

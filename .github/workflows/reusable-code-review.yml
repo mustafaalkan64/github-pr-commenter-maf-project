@@ -7,7 +7,7 @@ on:
         description: "OpenRouter LLM model identifier"
         required: false
         type: string
-        default: "openrouter/free"
+        default: "google/gemma-4-26b-a4b-it:free"
       reviewer_ref:
         description: "Branch or tag of github-pr-commenter-maf-project to use"
         required: false

@@ -24,7 +24,13 @@ public sealed class CodeQualityReviewExecutor : Executor<CodeReviewRequest, Spec
         var sw = Stopwatch.StartNew();
 
         var prompt = $"""
-            Aşağıdaki git diff'ini kod kalitesi, performans ve sürdürülebilirlik açısından incele.
+            Aşağıdaki git diff'inde `+` ile eklenen her satırı tek tek incele.
+            Özellikle şu alanlardaki ihlalleri eksiksiz raporla:
+            - Code smell, kullanılmayan/geçici/test amaçlı değişkenler, dead code ve adlandırma (naming) ihlalleri
+            - Technical debt (kod tekrarı, magic string/number, uzun metot, hardcoded değerler, yüksek karmaşıklık)
+            - SOLID prensipleri (SRP, OCP, LSP, ISP, DIP) ve Design Pattern iyileştirme fırsatları veya anti-pattern'ler
+            - Async/await, kaynak yönetimi, hata yönetimi ve performans
+
             Kaynak: {message.SourceDescription}
 
             ```diff

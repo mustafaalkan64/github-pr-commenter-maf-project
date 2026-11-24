@@ -1,0 +1,15 @@
+# .NET build artifacts
+bin/
+obj/
+
+# IDE & OS files
+.idea/
+.vs/
+.vscode/
+*.user
+*.suo
+.DS_Store
+
+# Local secrets / overrides
+appsettings.*.json
+!appsettings.Example.json

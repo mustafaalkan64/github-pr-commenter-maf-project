@@ -1,0 +1,64 @@
+name: Reusable AI Code Review
+
+on:
+  workflow_call:
+    inputs:
+      openrouter_model:
+        description: "OpenRouter LLM model identifier"
+        required: false
+        type: string
+        default: "openrouter/free"
+      reviewer_ref:
+        description: "Branch or tag of github-pr-commenter-maf-project to use"
+        required: false
+        type: string
+        default: "main"
+      dry_run:
+        description: "When true, runs the review without posting a GitHub PR comment"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      OPENROUTER_API_KEY:
+        description: "OpenRouter API key used by the review agents"
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ai-code-review-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-review:
+    name: AI Code Review (Security + Quality + Lead)
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.number != ''
+    steps:
+      - name: Clone CodeReviewAgents (public repo)
+        env:
+          REVIEWER_REF: ${{ inputs.reviewer_ref }}
+        run: |
+          git clone --depth 1 --branch "$REVIEWER_REF" \
+            https://github.com/mustafaalkan64/github-pr-commenter-maf-project.git \
+            _code_review_agents
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Run AI Code Review and upsert PR comment
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ inputs.openrouter_model }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GitHub__Owner: ${{ github.repository_owner }}
+          GitHub__Repo: ${{ github.event.repository.name }}
+          GitHub__PullRequestNumber: ${{ github.event.pull_request.number }}
+          GitHub__DryRun: ${{ inputs.dry_run }}
+          Review__DiffSource: "GitHubPr"
+          Smtp__DryRun: "true"
+        run: dotnet run --project _code_review_agents/CodeReviewAgents/CodeReviewAgents.csproj -c Release

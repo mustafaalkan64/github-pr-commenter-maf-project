@@ -15,6 +15,7 @@ public sealed class OpenRouterSettings
     public string Model { get; set; } = "openrouter/free";
     public string SiteUrl { get; set; } = "https://github.com/code-review-agents";
     public string AppName { get; set; } = "CodeReviewAgents";
+    public int TimeoutSeconds { get; set; } = 300;
 }
 
 public sealed class GitHubSettings
@@ -47,4 +48,5 @@ public sealed class ReviewSettings
     public string DiffSource { get; set; } = "Auto";
     public string GitDiffArguments { get; set; } = "diff HEAD";
     public string WorkingDirectory { get; set; } = string.Empty;
+    public int MaxDiffCharacters { get; set; } = 60_000;
 }

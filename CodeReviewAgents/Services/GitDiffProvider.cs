@@ -23,7 +23,7 @@ public sealed class GitDiffProvider
             var localDiff = await TryGetLocalGitDiffAsync(cancellationToken);
             if (!string.IsNullOrWhiteSpace(localDiff))
             {
-                return (localDiff, $"Local git ({_settings.Review.GitDiffArguments})");
+                return (TruncateIfNeeded(localDiff), $"Local git ({_settings.Review.GitDiffArguments})");
             }
 
             throw new InvalidOperationException("DiffSource 'LocalGit' seçildi ancak yerel git diff boş döndü.");
@@ -34,7 +34,7 @@ public sealed class GitDiffProvider
             var prDiff = await TryGetGitHubPrDiffAsync();
             if (!string.IsNullOrWhiteSpace(prDiff))
             {
-                return (prDiff, $"GitHub PR #{_settings.GitHub.PullRequestNumber} ({_settings.GitHub.Owner}/{_settings.GitHub.Repo})");
+                return (TruncateIfNeeded(prDiff), $"GitHub PR #{_settings.GitHub.PullRequestNumber} ({_settings.GitHub.Owner}/{_settings.GitHub.Repo})");
             }
 
             throw new InvalidOperationException("DiffSource 'GitHubPr' seçildi ancak PR diff alınamadı.");
@@ -54,14 +54,14 @@ public sealed class GitDiffProvider
             var prDiff = await TryGetGitHubPrDiffAsync();
             if (!string.IsNullOrWhiteSpace(prDiff))
             {
-                return (prDiff, $"GitHub PR #{_settings.GitHub.PullRequestNumber} ({_settings.GitHub.Owner}/{_settings.GitHub.Repo})");
+                return (TruncateIfNeeded(prDiff), $"GitHub PR #{_settings.GitHub.PullRequestNumber} ({_settings.GitHub.Owner}/{_settings.GitHub.Repo})");
             }
         }
 
         var autoLocalDiff = await TryGetLocalGitDiffAsync(cancellationToken);
         if (!string.IsNullOrWhiteSpace(autoLocalDiff))
         {
-            return (autoLocalDiff, $"Local git ({_settings.Review.GitDiffArguments})");
+            return (TruncateIfNeeded(autoLocalDiff), $"Local git ({_settings.Review.GitDiffArguments})");
         }
 
         return (SampleDiff, "Built-in Sample Git Diff (fallback)");
@@ -133,6 +133,11 @@ public sealed class GitDiffProvider
             var sb = new StringBuilder();
             foreach (var file in files)
             {
+                if (IsIgnoredDiffFile(file.FileName))
+                {
+                    continue;
+                }
+
                 sb.AppendLine($"diff --git a/{file.FileName} b/{file.FileName}");
                 sb.AppendLine($"--- a/{file.FileName}");
                 sb.AppendLine($"+++ b/{file.FileName}");
@@ -150,6 +155,27 @@ public sealed class GitDiffProvider
             Console.WriteLine($"[GitDiffProvider] GitHub PR diff alınamadı: {ex.Message}");
             return null;
         }
+    }
+
+    private string TruncateIfNeeded(string diff)
+    {
+        var maxChars = _settings.Review.MaxDiffCharacters;
+        if (maxChars <= 0 || diff.Length <= maxChars)
+        {
+            return diff;
+        }
+
+        Console.WriteLine($"[GitDiffProvider] Diff çok büyük ({diff.Length} karakter); ilk {maxChars} karakter inceleme için kırpıldı.");
+        return $"{diff[..maxChars]}\n\n... [Diff boyutu sınırı ({maxChars} karakter) nedeniyle geri kalanı kırpıldı] ...";
+    }
+
+    private static bool IsIgnoredDiffFile(string fileName)
+    {
+        return fileName.EndsWith("package-lock.json", StringComparison.OrdinalIgnoreCase)
+            || fileName.EndsWith("yarn.lock", StringComparison.OrdinalIgnoreCase)
+            || fileName.EndsWith("pnpm-lock.yaml", StringComparison.OrdinalIgnoreCase)
+            || fileName.EndsWith(".min.js", StringComparison.OrdinalIgnoreCase)
+            || fileName.EndsWith(".min.css", StringComparison.OrdinalIgnoreCase);
     }
 
     private const string SampleDiff = """

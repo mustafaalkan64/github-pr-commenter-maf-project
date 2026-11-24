@@ -20,9 +20,12 @@ public sealed class OpenRouterClientFactory : IDisposable
                 "OpenRouter:ApiKey tanımlı değil. Lütfen 'OPENROUTER_API_KEY' ortam değişkeni veya 'dotnet user-secrets set OpenRouter:ApiKey <key>' ile tanımlayın.");
         }
 
+        var networkTimeout = TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 30, 900));
+
         _httpClient = new HttpClient
         {
-            Timeout = TimeSpan.FromMinutes(3)
+            // Let ClientPipelineOptions.NetworkTimeout govern per-request timeouts cleanly.
+            Timeout = Timeout.InfiniteTimeSpan
         };
 
         if (!string.IsNullOrWhiteSpace(settings.SiteUrl))
@@ -38,6 +41,7 @@ public sealed class OpenRouterClientFactory : IDisposable
         var options = new OpenAIClientOptions
         {
             Endpoint = new Uri(settings.BaseUrl),
+            NetworkTimeout = networkTimeout,
             Transport = new HttpClientPipelineTransport(_httpClient)
         };
 

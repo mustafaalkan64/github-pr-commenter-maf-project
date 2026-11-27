@@ -97,3 +97,21 @@ jobs:
 - Yeni PR açıldığında (`opened`), PR'a yeni commit push edildiğinde (`synchronize`) veya tekrar açıldığında (`reopened`) otomatik tetiklenir.
 - Aynı PR'da yeni bir commit geldiğinde önceki çalışmayı iptal eder (`concurrency.cancel-in-progress: true`) ve gizli yorum işaretçisi (`<!-- code-review-agents:ai-pr-review -->`) sayesinde yeni yorum eklemek yerine **mevcut AI yorumunu günceller**.
 - GitHub Actions ortamında SMTP varsayılan olarak kapalıdır (`Smtp__DryRun: "true"`).
+
+### Ücretli LLM / Özel Sağlayıcı (OpenAI, Groq vb.) ve Ajan Bazlı Model Seçimi (Model Tiering)
+
+İsterseniz farklı bir OpenAI-uyumlu sağlayıcı (`llm_base_url`) verebilir ve paralel ajanlar ile Lead ajan için farklı modeller (`security_model`, `code_quality_model`, `lead_model`) seçebilirsiniz:
+
+```yaml
+jobs:
+  ai-review:
+    uses: mustafaalkan64/github-pr-commenter-maf-project/.github/workflows/reusable-code-review.yml@main
+    with:
+      llm_base_url: "https://api.openai.com/v1" # Varsayılan: https://openrouter.ai/api/v1
+      openrouter_model: "gpt-4.1-mini"          # Security & CodeQuality ajanları için
+      lead_model: "gpt-4.1"                     # Nihai denetim & onay için daha güçlü model
+    secrets:
+      OPENROUTER_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+```
+
+> Ücretli veya OpenRouter dışı bir model seçildiğinde ücretsiz yedek modellere (`:free`) sessizce düşülmez.

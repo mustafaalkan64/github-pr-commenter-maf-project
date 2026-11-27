@@ -10,7 +10,8 @@ namespace CodeReviewAgents.Services;
 public sealed class OpenRouterClientFactory : IDisposable
 {
     private readonly HttpClient _httpClient;
-    private readonly ChatClient _chatClient;
+    private readonly OpenAIClient _openAiClient;
+    private readonly OpenRouterSettings _settings;
 
     public OpenRouterClientFactory(OpenRouterSettings settings)
     {
@@ -20,8 +21,9 @@ public sealed class OpenRouterClientFactory : IDisposable
                 "OpenRouter:ApiKey tanımlı değil. Lütfen 'OPENROUTER_API_KEY' ortam değişkeni veya 'dotnet user-secrets set OpenRouter:ApiKey <key>' ile tanımlayın.");
         }
 
+        _settings = settings;
         var networkTimeout = TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 30, 900));
-        var fallbackHandler = new OpenRouterFallbackHandler(settings.Model, settings.FallbackModels);
+        var fallbackHandler = new OpenRouterFallbackHandler(settings.BaseUrl, settings.FallbackModels);
 
         _httpClient = new HttpClient(fallbackHandler)
         {
@@ -29,12 +31,13 @@ public sealed class OpenRouterClientFactory : IDisposable
             Timeout = Timeout.InfiniteTimeSpan
         };
 
-        if (!string.IsNullOrWhiteSpace(settings.SiteUrl))
+        var isOpenRouter = settings.BaseUrl.Contains("openrouter.ai", StringComparison.OrdinalIgnoreCase);
+        if (isOpenRouter && !string.IsNullOrWhiteSpace(settings.SiteUrl))
         {
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("HTTP-Referer", settings.SiteUrl);
         }
 
-        if (!string.IsNullOrWhiteSpace(settings.AppName))
+        if (isOpenRouter && !string.IsNullOrWhiteSpace(settings.AppName))
         {
             _httpClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Title", settings.AppName);
         }
@@ -47,13 +50,18 @@ public sealed class OpenRouterClientFactory : IDisposable
             Transport = new HttpClientPipelineTransport(_httpClient)
         };
 
-        var openAiClient = new OpenAIClient(new ApiKeyCredential(settings.ApiKey), options);
-        _chatClient = openAiClient.GetChatClient(settings.Model);
+        _openAiClient = new OpenAIClient(new ApiKeyCredential(settings.ApiKey), options);
+    }
+
+    private ChatClient CreateChatClient(string? modelOverride)
+    {
+        var model = string.IsNullOrWhiteSpace(modelOverride) ? _settings.Model : modelOverride.Trim();
+        return _openAiClient.GetChatClient(model);
     }
 
     public AIAgent CreateSecurityAgent()
     {
-        return _chatClient.AsAIAgent(
+        return CreateChatClient(_settings.SecurityModel).AsAIAgent(
             instructions: """
                 Sen kıdemli bir Uygulama Güvenliği (AppSec) Code Review ajanısın.
                 Sana verilen git diff'ini yalnızca güvenlik açısından derinlemesine incele:
@@ -75,7 +83,7 @@ public sealed class OpenRouterClientFactory : IDisposable
 
     public AIAgent CreateCodeQualityAgent()
     {
-        return _chatClient.AsAIAgent(
+        return CreateChatClient(_settings.CodeQualityModel).AsAIAgent(
             instructions: """
                 Sen kıdemli bir Yazılım Mimarisi ve Code Quality Review ajanısın.
                 Sana verilen git diff'inde `+` ile eklenen HER satırı tek tek, titizlikle incele. Aşağıdaki tüm kategorileri eksiksiz denetle:
@@ -124,7 +132,7 @@ public sealed class OpenRouterClientFactory : IDisposable
 
     public AIAgent CreateLeadReviewerAgent()
     {
-        return _chatClient.AsAIAgent(
+        return CreateChatClient(_settings.LeadModel).AsAIAgent(
             instructions: """
                 Sen ekibin Lead Code Reviewer ajanısın.
                 Görevin:

@@ -3,11 +3,31 @@ name: Reusable AI Code Review
 on:
   workflow_call:
     inputs:
+      llm_base_url:
+        description: "OpenAI-compatible LLM API base URL (OpenRouter, OpenAI, Groq, etc.)"
+        required: false
+        type: string
+        default: "https://openrouter.ai/api/v1"
       openrouter_model:
-        description: "OpenRouter LLM model identifier"
+        description: "Default LLM model identifier for all agents"
         required: false
         type: string
         default: "google/gemma-4-26b-a4b-it:free"
+      security_model:
+        description: "Optional model override for SecurityReviewAgent"
+        required: false
+        type: string
+        default: ""
+      code_quality_model:
+        description: "Optional model override for CodeQualityReviewAgent"
+        required: false
+        type: string
+        default: ""
+      lead_model:
+        description: "Optional model override for LeadReviewAgent (e.g., stronger model for final audit)"
+        required: false
+        type: string
+        default: ""
       reviewer_ref:
         description: "Branch or tag of github-pr-commenter-maf-project to use"
         required: false
@@ -20,7 +40,7 @@ on:
         default: false
     secrets:
       OPENROUTER_API_KEY:
-        description: "OpenRouter API key used by the review agents"
+        description: "API key for OpenRouter or the configured OpenAI-compatible LLM provider"
         required: true
 
 permissions:
@@ -62,6 +82,10 @@ jobs:
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           OPENROUTER_MODEL: ${{ inputs.openrouter_model }}
+          OpenRouter__BaseUrl: ${{ inputs.llm_base_url }}
+          OpenRouter__SecurityModel: ${{ inputs.security_model }}
+          OpenRouter__CodeQualityModel: ${{ inputs.code_quality_model }}
+          OpenRouter__LeadModel: ${{ inputs.lead_model }}
           GITHUB_TOKEN: ${{ github.token }}
           GitHub__Owner: ${{ github.repository_owner }}
           GitHub__Repo: ${{ github.event.repository.name }}

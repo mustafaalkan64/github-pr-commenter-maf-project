@@ -44,6 +44,14 @@ if (graphOnly && string.IsNullOrWhiteSpace(settings.OpenRouter.ApiKey))
 Console.WriteLine("=== Microsoft Agent Framework (.NET 10) - Concurrent Code Review Workflow ===");
 Console.WriteLine($"LLM Endpoint : {settings.OpenRouter.BaseUrl}");
 Console.WriteLine($"LLM Model    : {settings.OpenRouter.Model}");
+if (!string.IsNullOrWhiteSpace(settings.OpenRouter.SecurityModel)
+    || !string.IsNullOrWhiteSpace(settings.OpenRouter.CodeQualityModel)
+    || !string.IsNullOrWhiteSpace(settings.OpenRouter.LeadModel))
+{
+    Console.WriteLine($"  ├─ Security    : {FirstNonEmpty(settings.OpenRouter.SecurityModel, settings.OpenRouter.Model)}");
+    Console.WriteLine($"  ├─ CodeQuality : {FirstNonEmpty(settings.OpenRouter.CodeQualityModel, settings.OpenRouter.Model)}");
+    Console.WriteLine($"  └─ Lead        : {FirstNonEmpty(settings.OpenRouter.LeadModel, settings.OpenRouter.Model)}");
+}
 Console.WriteLine($"GitHub PR    : {(settings.GitHub.DryRun ? "DRY-RUN" : $"{settings.GitHub.Owner}/{settings.GitHub.Repo}#{settings.GitHub.PullRequestNumber}")}");
 Console.WriteLine($"SMTP Email   : {(settings.Smtp.DryRun ? "DRY-RUN" : $"{settings.Smtp.Host}:{settings.Smtp.Port} -> {settings.Smtp.ToEmail}")}");
 Console.WriteLine();

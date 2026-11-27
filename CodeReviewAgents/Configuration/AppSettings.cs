@@ -13,6 +13,9 @@ public sealed class OpenRouterSettings
     public string ApiKey { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = "https://openrouter.ai/api/v1";
     public string Model { get; set; } = "google/gemma-4-26b-a4b-it:free";
+    public string SecurityModel { get; set; } = string.Empty;
+    public string CodeQualityModel { get; set; } = string.Empty;
+    public string LeadModel { get; set; } = string.Empty;
     public List<string> FallbackModels { get; set; } = [];
     public string SiteUrl { get; set; } = "https://github.com/code-review-agents";
     public string AppName { get; set; } = "CodeReviewAgents";

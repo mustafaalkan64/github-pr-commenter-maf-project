@@ -7,6 +7,8 @@ namespace CodeReviewAgents.Services;
 /// <summary>
 /// Automatically falls back to alternative OpenRouter models with jittered backoff
 /// when a free upstream provider returns HTTP 429 (rate limit) or 5xx/404 errors.
+/// Respects per-request model overrides (Model Tiering) and never downgrades paid
+/// or non-OpenRouter provider models to free fallbacks.
 /// </summary>
 public sealed class OpenRouterFallbackHandler : DelegatingHandler
 {
@@ -20,24 +22,28 @@ public sealed class OpenRouterFallbackHandler : DelegatingHandler
         "openrouter/free"
     ];
 
-    private readonly IReadOnlyList<string> _candidateModels;
+    private readonly bool _isOpenRouterEndpoint;
+    private readonly IReadOnlyList<string> _configuredFallbacks;
 
     public OpenRouterFallbackHandler(
-        string primaryModel,
+        string baseUrl,
         IEnumerable<string>? configuredFallbacks = null,
         HttpMessageHandler? innerHandler = null)
         : base(innerHandler ?? new SocketsHttpHandler())
     {
-        _candidateModels = BuildCandidateList(primaryModel, configuredFallbacks);
+        _isOpenRouterEndpoint = baseUrl.Contains("openrouter.ai", StringComparison.OrdinalIgnoreCase);
+        _configuredFallbacks = configuredFallbacks?
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .Select(m => m.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray() ?? [];
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
     {
-        if (request.Method != HttpMethod.Post
-            || request.Content is null
-            || _candidateModels.Count <= 1)
+        if (request.Method != HttpMethod.Post || request.Content is null)
         {
             return await base.SendAsync(request, cancellationToken);
         }
@@ -56,27 +62,35 @@ public sealed class OpenRouterFallbackHandler : DelegatingHandler
             // Non-JSON payload; pass through untouched.
         }
 
-        if (parsedRoot is null || !parsedRoot.ContainsKey("model"))
+        var requestedModel = parsedRoot?["model"]?.GetValue<string>();
+        if (parsedRoot is null || string.IsNullOrWhiteSpace(requestedModel))
         {
             using var passthrough = CloneRequest(request, originalBody, mediaType);
             return await base.SendAsync(passthrough, cancellationToken);
         }
 
-        for (var i = 0; i < _candidateModels.Count; i++)
+        var candidateModels = BuildCandidateList(requestedModel);
+        if (candidateModels.Count <= 1)
         {
-            var candidateModel = _candidateModels[i];
+            using var passthrough = CloneRequest(request, originalBody, mediaType);
+            return await base.SendAsync(passthrough, cancellationToken);
+        }
+
+        for (var i = 0; i < candidateModels.Count; i++)
+        {
+            var candidateModel = candidateModels[i];
             parsedRoot["model"] = candidateModel;
             var payload = parsedRoot.ToJsonString();
 
             using var attemptRequest = CloneRequest(request, payload, mediaType);
             var response = await base.SendAsync(attemptRequest, cancellationToken);
 
-            if (!ShouldFallback(response.StatusCode) || i == _candidateModels.Count - 1)
+            if (!ShouldFallback(response.StatusCode) || i == candidateModels.Count - 1)
             {
                 return response;
             }
 
-            var nextModel = _candidateModels[i + 1];
+            var nextModel = candidateModels[i + 1];
             var statusCode = (int)response.StatusCode;
             var delayMs = 1200 + Random.Shared.Next(300, 1500) + (i * 500);
 
@@ -119,9 +133,7 @@ public sealed class OpenRouterFallbackHandler : DelegatingHandler
         return clone;
     }
 
-    private static IReadOnlyList<string> BuildCandidateList(
-        string primaryModel,
-        IEnumerable<string>? configuredFallbacks)
+    private IReadOnlyList<string> BuildCandidateList(string requestedModel)
     {
         var list = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -134,20 +146,18 @@ public sealed class OpenRouterFallbackHandler : DelegatingHandler
             }
         }
 
-        TryAdd(primaryModel);
+        TryAdd(requestedModel);
 
-        if (configuredFallbacks is not null)
+        foreach (var fallback in _configuredFallbacks)
         {
-            foreach (var fallback in configuredFallbacks)
-            {
-                TryAdd(fallback);
-            }
+            TryAdd(fallback);
         }
 
-        var isFreeModel = primaryModel.EndsWith(":free", StringComparison.OrdinalIgnoreCase)
-            || primaryModel.Equals("openrouter/free", StringComparison.OrdinalIgnoreCase);
+        var isFreeOpenRouterModel = _isOpenRouterEndpoint
+            && (requestedModel.EndsWith(":free", StringComparison.OrdinalIgnoreCase)
+                || requestedModel.Equals("openrouter/free", StringComparison.OrdinalIgnoreCase));
 
-        if (isFreeModel)
+        if (isFreeOpenRouterModel)
         {
             foreach (var fallback in DefaultFreeFallbacks)
             {
